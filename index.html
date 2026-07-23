@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SAFE-FLOOD - ออฟไลน์แดชบอร์ดรับมือน้ำท่วม</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- FontAwesome Icons CDN -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Google Fonts: IBM Plex Sans Thai (Thai) & Outfit (Eng) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Custom Stylesheet -->
+  <link rel="stylesheet" href="styles.css">
+
+  <!-- Tailwind Configuration for Custom Animation / Glow Effects -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"IBM Plex Sans Thai"', '"Outfit"', 'sans-serif'],
+          },
+          animation: {
+            'radar-sweep': 'radar-sweep 4s linear infinite',
+            'radar-ping-1': 'radar-ping 2.5s cubic-bezier(0, 0, 0.2, 1) infinite',
+            'radar-ping-2': 'radar-ping 2.5s cubic-bezier(0, 0, 0.2, 1) infinite 1.25s',
+            'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'glow-pulse': 'glow-pulse 2s ease-in-out infinite',
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans min-h-screen grid-bg transition-colors duration-500 overflow-x-hidden selection:bg-orange-500 selection:text-white pb-24">
+
+  <!-- ================= STICKY HEADER ================= -->
+  <header id="navBar" class="sticky top-0 z-50 transition-all duration-500 backdrop-blur-md bg-slate-950/80 border-b border-slate-900 px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <!-- Dynamic Brand Logo (Rotates and glows in offline mode) -->
+      <div id="brandIcon" class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-orange-500 flex items-center justify-center shadow-lg shadow-blue-500/10 transition-transform duration-500">
+        <i class="fa-solid fa-house-flood-water text-white text-lg"></i>
+      </div>
+      <div>
+        <h1 id="brandName" class="font-extrabold text-lg tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-100 to-slate-400 flex items-center gap-1.5 transition-all duration-500">
+          SAFE-FLOOD
+        </h1>
+        <p id="brandSub" class="text-[10px] text-slate-400 tracking-wide font-medium transition-all duration-500">
+          ระบบสนับสนุนออฟไลน์บางพลัด
+        </p>
+      </div>
+    </div>
+
+    <!-- Telemetry status indicator toggle knob -->
+    <div class="flex items-center gap-2">
+      <span id="statusBadge" class="text-[10px] font-extrabold tracking-wider px-2 py-1 rounded-full uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1 transition-all duration-300">
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+        <span id="statusText">ONLINE</span>
+      </span>
+
+      <!-- Custom Toggle Slider for Online/Offline Simulation -->
+      <div class="relative">
+        <button id="modeToggleBtn" aria-label="Toggle Online/Offline mode" class="w-16 h-8 rounded-full bg-slate-900 border border-slate-800 p-0.5 flex items-center transition-all duration-500 focus:outline-none hover:border-slate-700">
+          <!-- Knob -->
+          <div id="toggleKnob" class="w-8 h-8 rounded-full bg-emerald-500 shadow-md shadow-emerald-500/30 flex items-center justify-center transition-transform duration-500 ease-in-out translate-x-0">
+            <i id="toggleIcon" class="fa-solid fa-wifi text-slate-950 text-xs transition-transform duration-500"></i>
+          </div>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ================= CONTAINER ================= -->
+  <main class="max-w-md mx-auto px-4 mt-6">
+
+    <!-- ================= VIEW 1: DASHBOARD (หน้าหลัก) ================= -->
+    <div id="view-dashboard" class="space-y-6 transition-all duration-300">
+      
+      <!-- ONLINE-ONLY HEADER (Weather & Radar) -->
+      <div id="onlineDashboardHeader" class="grid grid-cols-2 gap-4">
+        <!-- Water Level Card -->
+        <div class="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-4 flex flex-col justify-between overflow-hidden relative glow-orange group hover:border-orange-500/50 hover:bg-slate-900/80 transition-all duration-300 h-44">
+          <div class="z-10">
+            <span id="waterLabelText" class="text-xs font-bold text-orange-400 tracking-wide flex items-center gap-1 uppercase">
+              <i class="fa-solid fa-droplet text-[10px] animate-bounce"></i> ระดับน้ำ
+            </span>
+            <h3 class="text-3xl font-extrabold mt-1 text-white flex items-baseline gap-1">
+              2.50<span class="text-lg font-bold text-slate-400">m</span>
+            </h3>
+            <p class="text-[9px] text-slate-400 font-bold mt-0.5">สถานี C.29A (อัปเดตเมื่อ 0 วินาทีที่แล้ว)</p>
+          </div>
+          
+          <!-- SVG Trendline Chart -->
+          <div class="absolute bottom-6 left-0 right-0 h-8 opacity-45 px-4 pointer-events-none z-10">
+            <svg class="w-full h-full stroke-orange-500/80 fill-none" viewBox="0 0 100 30" stroke-width="2">
+              <path d="M0 25 Q15 22, 30 18 T60 12 T90 5 T100 2" stroke-linecap="round"/>
+            </svg>
+          </div>
+
+          <div class="z-20 flex justify-between items-center">
+            <span id="waterAlertText" class="text-[9px] font-extrabold tracking-wider px-2 py-0.5 rounded bg-orange-500/10 text-orange-400 border border-orange-500/20 uppercase">
+              วิกฤต
+            </span>
+          </div>
+        </div>
+
+        <!-- Weather radar Card -->
+        <div class="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-4 flex flex-col justify-between overflow-hidden relative group hover:border-slate-800 hover:bg-slate-900/80 transition-all duration-300 h-44">
+          <div class="z-10">
+            <span id="weatherLabelText" class="text-xs font-bold text-slate-400 tracking-wide flex items-center gap-1 uppercase">
+              <i class="fa-solid fa-cloud-showers-water text-[10px]"></i> สภาพอากาศ
+            </span>
+            <h3 id="weatherDescText" class="text-xl font-extrabold mt-1 text-white tracking-wide">ฝนตกหนักสะสม</h3>
+            <p id="weatherStatusText" class="text-xs text-slate-400 mt-1">มรสุมกำลังแรง • 150มม./ชม.</p>
+          </div>
+
+          <!-- Circular Storm Radar Graphic representation -->
+          <div class="absolute -bottom-8 -right-8 w-24 h-24 rounded-full border border-slate-800/80 flex items-center justify-center z-10 pointer-events-none">
+            <div class="w-18 h-18 rounded-full border border-slate-850 flex items-center justify-center relative">
+              <div class="absolute inset-0 bg-blue-500/5 rounded-full animate-pulse"></div>
+              <!-- Radar Sweep hand line -->
+              <div class="absolute top-1/2 left-1/2 w-1/2 h-[1px] bg-emerald-500 origin-left -translate-y-1/2 animate-radar-sweep shadow-[0_0_8px_#10b981]"></div>
+              <div class="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+            </div>
+          </div>
+
+          <div class="z-20 flex justify-between items-center">
+            <span id="weatherWarningActiveText" class="text-[9px] font-bold text-slate-500 tracking-wider flex items-center gap-1 uppercase">
+              <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping"></span> Warning Active
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- OFFLINE-ONLY HEADER (SOS Trigger & Warnings) -->
+      <div id="offlineDashboardHeader" class="hidden space-y-6">
+        <!-- WARNING INDICATOR CARD -->
+        <section class="bg-yellow-950/20 border border-yellow-500/30 p-4 rounded-2xl flex items-center gap-4 select-none">
+          <i class="fa-solid fa-triangle-exclamation text-yellow-400 text-2xl animate-pulse"></i>
+          <div>
+            <h2 id="offlineWarningTitleText" class="text-xs font-extrabold text-yellow-450 tracking-wider">CRISIS OFFLINE STATUS</h2>
+            <p id="offlineWarningDescText" class="text-[10px] text-slate-300 font-bold mt-0.5">
+              พลังงานสำรอง: ใช้ได้อีกประมาณ 18 ชั่วโมง (เข้าสู่โหมดกู้ภัยออฟไลน์ผ่านคลื่นวิทยุแล้ว)
+            </p>
+          </div>
+        </section>
+
+        <!-- EMERGENCY SOS BEACON TRIGGER (Direct Action Button) -->
+        <section class="bg-neutral-900/40 border border-neutral-900 rounded-2xl p-6 flex flex-col items-center justify-center space-y-4">
+          <div class="text-center">
+            <h3 id="sosBeaconTitleText" class="text-xs font-black text-slate-400 uppercase tracking-widest">Emergency Morse Beacon</h3>
+            <p id="sosBeaconSubtitleText" class="text-[9px] text-red-500 font-black tracking-widest mt-0.5">ส่งสัญญาณรหัสมอร์ส SOS ขอความช่วยเหลือเร่งด่วน</p>
+          </div>
+
+          <!-- Direct SOS Trigger Button (No Cover) -->
+          <div class="relative w-40 h-40 flex items-center justify-center">
+            <button id="sosTriggerBtn" aria-label="Trigger SOS Flash Beacon" class="w-36 h-36 rounded-full bg-gradient-to-b from-red-600 to-red-800 border-4 border-neutral-900 shadow-[0_10px_25px_rgba(239,68,68,0.5)] flex flex-col items-center justify-center relative cursor-pointer select-none active:translate-y-1 active:shadow-[0_4px_10px_rgba(239,68,68,0.3)] transition-all animate-glow-pulse group btn-focus focus:outline-none">
+              <div class="absolute inset-2.5 rounded-full border border-red-400/20"></div>
+              <div class="absolute inset-0 rounded-full bg-red-400/10 scale-100 group-hover:scale-110 transition-transform duration-700 animate-ping opacity-60"></div>
+              
+              <i class="fa-solid fa-radiation text-white text-3xl group-hover:rotate-45 transition-transform duration-500 mb-1"></i>
+              <span class="text-2xl font-black text-white tracking-widest drop-shadow-md">SOS BEACON</span>
+              <span id="sosBtnInstruction" class="text-[8px] font-black text-red-100 tracking-wider mt-0.5 drop-shadow uppercase animate-pulse">แตะเพื่อส่งสัญญาณไฟฉุกเฉิน</span>
+            </button>
+          </div>
+
+          <p id="sosBeaconFootnoteText" class="text-[10px] text-slate-500 text-center leading-relaxed">
+            *ระบบกะพริบรหัสมอร์สตามไฟบีคอนนำทางความถี่สูงเพื่อขอความช่วยเหลือเร่งด่วนทางอากาศและเรือกู้ชีพ
+          </p>
+        </section>
+      </div>
+
+      <!-- SECTION 2: MAP (Simulated Map Box - Shared) -->
+      <section class="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-5 group hover:border-slate-800 hover:bg-slate-900/80 transition-all duration-300">
+        <div class="flex items-center justify-between mb-3">
+          <h2 id="mapTitleText" class="text-sm font-bold uppercase tracking-wider text-slate-200 flex items-center gap-2">
+            <i class="fa-solid fa-map-location-dot text-red-500"></i> แผนที่จุดเสี่ยงภัยน้ำท่วม
+          </h2>
+          <span class="text-[10px] font-extrabold text-red-500 tracking-widest uppercase flex items-center gap-1">
+            <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping"></span> Live GPS
+          </span>
+        </div>
+
+        <!-- Simulated Map Box -->
+        <div class="h-48 rounded-xl bg-slate-950 border border-slate-900 overflow-hidden relative flex items-center justify-center">
+          <!-- Mock Map Overlay (Roads and River Vector Paths) -->
+          <svg id="mapSvg" viewBox="0 0 400 200" width="100%" height="100%" class="absolute inset-0 w-full h-full fill-none transition-all duration-700" stroke-width="1.5">
+            <!-- Background Map Features (River & Roads) at 30% opacity -->
+            <g class="opacity-30 stroke-slate-800">
+              <!-- River Chao Phraya -->
+              <path d="M-10 100 Q150 90, 200 110 T450 80" stroke="#1e3a8a" stroke-width="26" stroke-linecap="round"/>
+              <path d="M-10 100 Q150 90, 200 110 T450 80" stroke="#0284c7" stroke-width="2.5" stroke-linecap="round"/>
+              <!-- Local Streets -->
+              <path d="M40 0 L40 200" />
+              <path d="M120 0 L120 200" />
+              <path d="M300 0 L300 200" />
+              <path d="M0 50 L400 50" />
+              <path d="M0 135 L400 135" />
+            </g>
+
+            <!-- Vector Hazard Marker (Pulsing via SVG CSS animations) -->
+            <g id="hazardMarker" transform="translate(240, 70)">
+              <!-- Pulsing circles -->
+              <circle r="12" fill="none" stroke="#ef4444" stroke-width="2" class="animate-ping opacity-75" />
+              <!-- Center Hazard Circle -->
+              <circle r="7" fill="#dc2626" stroke="#000" stroke-width="1" />
+              <text y="3.5" font-size="8" fill="white" font-weight="900" text-anchor="middle">⚡</text>
+              <!-- Label box -->
+              <rect x="12" y="-10" width="112" height="16" rx="4" fill="rgba(69, 10, 10, 0.9)" stroke="#991b1b" stroke-width="1" />
+              <text x="68" y="1" font-family="'IBM Plex Sans Thai', sans-serif" font-size="7" font-weight="600" fill="#fca5a5" text-anchor="middle">ไฟฟ้ารั่ว (ปากซอยจรัญฯ 75)</text>
+            </g>
+
+            <!-- Vector Evacuation Center Marker -->
+            <g id="shelterMarker" transform="translate(60, 150)">
+              <circle r="10" fill="none" stroke="#10b981" stroke-width="1.5" class="animate-ping opacity-60" />
+              <circle r="6" fill="#10b981" stroke="#000" stroke-width="1" />
+              <text y="3" font-size="8" fill="black" font-weight="900" text-anchor="middle">🏠</text>
+              <!-- Label box -->
+              <rect x="12" y="-10" width="112" height="16" rx="4" fill="rgba(15, 23, 42, 0.9)" stroke="#1e293b" stroke-width="1" />
+              <text x="68" y="1" font-family="'IBM Plex Sans Thai', sans-serif" font-size="7" font-weight="600" fill="#cbd5e1" text-anchor="middle">วัดอาวุธฯ (ศูนย์อพยพหลัก)</text>
+            </g>
+
+            <!-- Dynamic User GPS location marker -->
+            <g id="userLocationPin" transform="translate(180, 120)" class="hidden">
+              <circle r="12" fill="none" stroke="#3b82f6" stroke-width="2" class="animate-ping" />
+              <circle r="6" fill="#3b82f6" stroke="#fff" stroke-width="1.5" />
+              <!-- Label box -->
+              <rect x="12" y="-10" width="70" height="16" rx="4" fill="rgba(15, 23, 42, 0.9)" stroke="#1e3a8a" stroke-width="1" />
+              <text id="userLocationPinLabel" x="47" y="1" font-family="'IBM Plex Sans Thai', sans-serif" font-size="7" font-weight="600" fill="#93c5fd" text-anchor="middle">คุณ (You)</text>
+            </g>
+          </svg>
+
+          <!-- Simulated Map Controls -->
+          <div class="absolute top-2 left-2 flex flex-col gap-1 z-20">
+            <button onclick="zoomMap('in')" class="w-6 h-6 rounded bg-slate-900 border border-slate-800 flex items-center justify-center text-xs text-slate-350 font-bold hover:bg-slate-800 focus:outline-none">+</button>
+            <button onclick="zoomMap('out')" class="w-6 h-6 rounded bg-slate-900 border border-slate-800 flex items-center justify-center text-xs text-slate-350 font-bold hover:bg-slate-800 focus:outline-none">-</button>
+          </div>
+          <div class="absolute top-2 right-2 z-20 flex gap-1">
+            <div id="mapCoords" class="bg-slate-900/90 border border-slate-800/80 px-2 py-0.5 rounded text-[8px] font-mono text-slate-400">
+              13.7915° N, 100.4952° E
+            </div>
+          </div>
+
+          <!-- Legend info -->
+          <div class="absolute bottom-2 right-2 bg-slate-900/80 backdrop-blur-md px-2 py-1 rounded-md border border-slate-800 text-[8px] text-slate-400 font-bold flex gap-3 z-20">
+            <span class="flex items-center gap-1"><i class="fa-solid fa-bolt-lightning text-red-500"></i> ไฟฟ้ารั่ว</span>
+            <span class="flex items-center gap-1"><i class="fa-solid fa-person-shelter text-emerald-400"></i> จุดอพยพ</span>
+          </div>
+        </div>
+
+        <!-- Live GPS Distance warning banner -->
+        <div id="gpsDistanceAlert" class="mt-2.5 p-3 rounded-xl bg-slate-950 border border-slate-900 flex items-center justify-between text-[10px] select-none text-slate-400 hidden">
+          <span class="flex items-center gap-1.5"><i class="fa-solid fa-location-crosshairs text-orange-500 animate-pulse text-xs"></i> <span id="gpsDistanceText">กำลังคำนวณตำแหน่งภัยพิบัติ...</span></span>
+          <span id="gpsDistanceStatus" class="font-mono px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-400 border border-orange-500/20 text-[8px]">หาตำแหน่ง</span>
+        </div>
+      </section>
+
+      <!-- SECTION 3: FAMILY STATUS (Online Only) -->
+      <section id="familyStatusSection" class="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-5 group hover:border-slate-800 hover:bg-slate-900/80 transition-all duration-300">
+        <div class="flex items-center justify-between mb-4 border-b border-slate-800/60 pb-3">
+          <h2 id="familyTitleText" class="text-sm font-bold uppercase tracking-wider text-slate-200 flex items-center gap-2">
+            <i class="fa-solid fa-people-roof text-blue-500"></i> ติดตามสถานะสมาชิกครอบครัว
+          </h2>
+        </div>
+
+        <!-- Family List -->
+        <div class="space-y-3">
+          <!-- Father -->
+          <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-950/40 border border-slate-900 hover:border-slate-800 transition-all">
+            <div class="flex items-center gap-3">
+              <div class="w-9 h-9 rounded-full bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 text-sm">
+                <i class="fa-solid fa-user-tie"></i>
+              </div>
+              <div>
+                <h4 class="text-xs font-bold text-slate-200">พ่อสมชาย (58 ปี)</h4>
+                <p class="text-[9px] text-slate-500"><i class="fa-solid fa-location-dot"></i> พิกัด: ซอยจรัญฯ 75 • <span class="font-mono">🔋 12%</span></p>
+              </div>
+            </div>
+            <span class="text-[9px] font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1">
+              <span class="w-1 h-1 rounded-full bg-amber-400 animate-pulse"></span> รอความช่วยเหลือ
+            </span>
+          </div>
+
+          <!-- Mother -->
+          <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-950/40 border border-slate-900 hover:border-slate-800 transition-all">
+            <div class="flex items-center gap-3">
+              <div class="w-9 h-9 rounded-full bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-400 text-sm">
+                <i class="fa-solid fa-user-ninja"></i>
+              </div>
+              <div>
+                <h4 class="text-xs font-bold text-slate-200">แม่สมศรี (55 ปี)</h4>
+                <p class="text-[9px] text-slate-500"><i class="fa-solid fa-location-dot"></i> พิกัด: รร.บูรณวิทย์ (ศูนย์อพยพ) • <span class="font-mono">🔋 65%</span></p>
+              </div>
+            </div>
+            <span id="motherStatusBadge" class="text-[9px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+              <span class="w-1 h-1 rounded-full bg-emerald-400"></span> ปลอดภัย
+            </span>
+          </div>
+
+          <!-- Brother -->
+          <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-950/40 border border-slate-900 hover:border-slate-800 transition-all">
+            <div class="flex items-center gap-3">
+              <div class="w-9 h-9 rounded-full bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400 text-sm">
+                <i class="fa-solid fa-child-reaching"></i>
+              </div>
+              <div>
+                <h4 class="text-xs font-bold text-slate-200">น้องพีท (19 ปี)</h4>
+                <p class="text-[9px] text-slate-500"><i class="fa-solid fa-location-dot"></i> พิกัด: กู้ภัยบางพลัด • <span class="font-mono">🔋 92%</span></p>
+              </div>
+            </div>
+            <span class="text-[9px] font-bold px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center gap-1">
+              <span class="w-1 h-1 rounded-full bg-blue-400"></span> อาสาสมัครกู้ภัย
+            </span>
+          </div>
+        </div>
+      </section>
+    </div>
+
+
+    <!-- ================= VIEW 2: EMERGENCY CHAT (แชทช่วยเหลือแยกหน้าเต็ม) ================= -->
+    <div id="view-chat" class="hidden space-y-4 transition-all duration-300">
+      
+      <!-- Selector Toggle Switch (Manual Bot vs Mesh Radio Chat) -->
+      <div id="chatSelector" class="flex bg-slate-900 p-1 rounded-xl border border-slate-800 max-w-xs mx-auto mb-2 font-bold text-xs select-none">
+        <button id="btn-manual-tab" onclick="switchChatType('manual')" class="flex-1 py-2.5 rounded-lg bg-yellow-400 text-black text-center font-extrabold transition-all focus:outline-none">
+          <i class="fa-solid fa-book-bookmark mr-1"></i>คู่มือออฟไลน์
+        </button>
+        <button id="btn-mesh-tab" onclick="switchChatType('mesh')" class="flex-1 py-2.5 rounded-lg text-slate-400 text-center font-bold hover:text-slate-200 transition-all focus:outline-none">
+          <i class="fa-solid fa-tower-broadcast mr-1 animate-pulse"></i>วิทยุเพื่อนบ้าน
+        </button>
+      </div>
+
+      <!-- Tab Content A: FULLSCREEN MANUAL BOT -->
+      <div id="chat-manual-container" class="space-y-4">
+        <!-- Chat Output Terminal (Taller Fullscreen Height) -->
+        <div id="chatTerminal" class="h-[52vh] rounded-2xl bg-neutral-950 border border-neutral-900 p-4 overflow-y-auto space-y-4 text-sm relative">
+          <!-- System Welcome Message -->
+          <div class="flex items-start gap-2.5">
+            <div class="w-6 h-6 rounded-md bg-yellow-400/20 border border-yellow-400/30 flex items-center justify-center text-yellow-400 text-[10px] shrink-0 mt-0.5">
+              📟
+            </div>
+            <div class="bg-slate-900/60 text-slate-100 p-3 rounded-2xl rounded-tl-none border border-slate-800 max-w-[85%] text-xs md:text-sm leading-relaxed">
+              ยินดีต้อนรับสู่คู่มือฉุกเฉินแบบตอบโต้ คุณสามารถพิมพ์ค้นหาหัวข้อภัยพิบัติ หรือแตะเลือกการ์ดข้อมูลด่วนด้านล่างเพื่อเปิดคำแนะนำแบบออฟไลน์ได้ทันที
+            </div>
+          </div>
+          <div id="dynamicChatContainer" class="space-y-4"></div>
+        </div>
+
+        <!-- Chat Input Form for Custom Queries -->
+        <div class="flex gap-2">
+          <input type="text" id="offlineChatInput" placeholder="พิมพ์ถามคำถาม (เช่น: ไฟดูด, อพยพ, เบอร์โทร)..." class="flex-1 bg-neutral-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white placeholder-slate-650 focus:outline-none focus:border-yellow-400 font-bold">
+          <button id="sendOfflineChatBtn" class="px-4 bg-yellow-400 text-slate-950 font-black rounded-xl hover:bg-yellow-355 transition-colors text-xs flex items-center justify-center gap-1 btn-focus">
+            <i class="fa-solid fa-paper-plane"></i>
+            <span>ถาม</span>
+          </button>
+        </div>
+
+        <!-- Quick Action Trigger Chips -->
+        <div class="grid grid-cols-2 gap-2">
+          <button onclick="handleCategoryQuery('medical')" class="py-3 px-2 rounded-xl bg-slate-900/80 border border-slate-800 hover:border-yellow-450 text-slate-200 text-xs font-semibold transition-all flex items-center justify-center gap-1.5 btn-focus select-none">
+            <i class="fa-solid fa-kit-medical text-xs text-red-500"></i>
+            <span>🩺 การแพทย์และปฐมพยาบาล</span>
+          </button>
+          <button onclick="handleCategoryQuery('evacuation')" class="py-3 px-2 rounded-xl bg-slate-900/80 border border-slate-800 hover:border-yellow-450 text-slate-200 text-xs font-semibold transition-all flex items-center justify-center gap-1.5 btn-focus select-none">
+            <i class="fa-solid fa-person-running text-xs text-orange-400"></i>
+            <span>⛵ การอพยพและกู้ภัย</span>
+          </button>
+          <button onclick="handleCategoryQuery('safety')" class="py-3 px-2 rounded-xl bg-slate-900/80 border border-slate-800 hover:border-yellow-450 text-slate-200 text-xs font-semibold transition-all flex items-center justify-center gap-1.5 btn-focus select-none">
+            <i class="fa-solid fa-plug-circle-exclamation text-xs text-yellow-400"></i>
+            <span>🔌 ไฟฟ้าและอัคคีภัย</span>
+          </button>
+          <button onclick="handleCategoryQuery('living')" class="py-3 px-2 rounded-xl bg-slate-900/80 border border-slate-800 hover:border-yellow-450 text-slate-200 text-xs font-semibold transition-all flex items-center justify-center gap-1.5 btn-focus select-none">
+            <i class="fa-solid fa-droplet text-xs text-blue-400"></i>
+            <span>💧 น้ำดื่มและสุขอนามัย</span>
+          </button>
+          <button onclick="handleCategoryQuery('contacts')" class="col-span-2 py-3 px-2 rounded-xl bg-slate-900/80 border border-slate-800 hover:border-yellow-450 text-slate-200 text-xs font-semibold transition-all flex items-center justify-center gap-1.5 btn-focus select-none">
+            <i class="fa-solid fa-phone-flip text-xs text-emerald-400"></i>
+            <span>📞 เบอร์ฉุกเฉินและกู้ภัย</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Tab Content B: FULLSCREEN MESH CHAT -->
+      <div id="chat-mesh-container" class="hidden space-y-4">
+        <!-- Mesh Chat Header Info -->
+        <div class="p-3 rounded-xl bg-emerald-950/10 border border-emerald-500/25 flex flex-col gap-1 text-emerald-400 text-[10px] font-extrabold select-none">
+          <div class="flex items-center justify-between">
+            <span class="flex items-center gap-1.5"><i class="fa-solid fa-tower-broadcast animate-pulse"></i> คลื่นสัญญาณวิทยุชุมชนทำงานปกติ</span>
+            <span>ระยะใช้งาน: 350 เมตร</span>
+          </div>
+          <p class="text-[8px] text-slate-500 font-semibold leading-relaxed border-t border-emerald-500/10 pt-1 mt-1">
+            *ข้อแนะนำ: ระบบแชทวิทยุนี้เป็นการจำลองสภาวะเชื่อมต่อไร้สาย (Wi-Fi/Bluetooth Mesh) ในสถานการณ์ภัยพิบัติจริงที่สัญญาณเน็ตล่ม ควรเปิดใช้งานแอปพลิเคชันออฟไลน์โดยตรง เช่น Briar, Bridgefy หรือวิทยุสื่อสารพกพา
+          </p>
+        </div>
+
+        <!-- Pinned Alert Board -->
+        <div id="meshPinnedAlert" class="p-3 rounded-xl bg-red-950/20 border border-red-500/30 flex items-start gap-2.5 relative select-none">
+          <span class="w-6 h-6 rounded-md bg-red-500/20 border border-red-500/30 flex items-center justify-center text-red-500 text-xs shrink-0 mt-0.5 animate-bounce">
+            📌
+          </span>
+          <div class="flex-1 space-y-0.5">
+            <h4 class="text-[9px] font-black text-red-400 tracking-wider uppercase">ข้อความปักหมุดด่วนพิเศษ (Pinned Emergency Alert)</h4>
+            <p id="pinnedAlertText" class="text-[10px] text-slate-200 font-medium">ประกาศ: แจ้งพบพิกัดไฟฟ้ารั่วปากซอยจรัญฯ 75 โปรดเลี่ยงเดินลุยน้ำบริเวณแยกหลัก!</p>
+          </div>
+        </div>
+
+        <!-- Chat Feed (Fullscreen height) -->
+        <div id="meshChatFeed" class="h-[56vh] rounded-2xl bg-neutral-950 border border-neutral-900 p-4 overflow-y-auto space-y-3 text-[11px]">
+          <div class="p-2.5 rounded-xl bg-neutral-900 border border-slate-850 leading-relaxed text-slate-300">
+            <div class="flex items-center justify-between">
+              <span class="text-yellow-400 font-bold"><i class="fa-solid fa-house-user text-[9px]"></i> บ้านลุงพล (จรัญฯ 73) - 100ม.</span>
+              <button onclick="pinMeshMessage('บ้านลุงพล (จรัญฯ 73): ระดับน้ำหน้าบ้านล้นตลิ่งเกือบ 1 เมตรแล้วครับ มีใครต้องการความช่วยเหลือเรื่องอาหารแห้งไหม?')" class="text-[9px] text-slate-500 hover:text-red-400 focus:outline-none flex items-center gap-0.5 select-none">
+                <i class="fa-solid fa-thumbtack text-[8px]"></i> ปักหมุด
+              </button>
+            </div>
+            <p class="mt-1 text-slate-200">ระดับน้ำหน้าบ้านล้นตลิ่งเกือบ 1 เมตรแล้วครับ มีใครต้องการความช่วยเหลือเรื่องอาหารแห้งไหม?</p>
+            <span class="text-[8px] text-slate-500 font-mono block text-right mt-0.5">5 นาทีที่แล้ว</span>
+          </div>
+          <div class="p-2.5 rounded-xl bg-neutral-900 border border-slate-850 leading-relaxed text-slate-300">
+            <div class="flex items-center justify-between">
+              <span class="text-pink-400 font-bold"><i class="fa-solid fa-house-user text-[9px]"></i> ป้าสมพร (จรัญฯ 75) - 250ม.</span>
+              <button onclick="pinMeshMessage('ป้าสมพร (จรัญฯ 75): สับคัตเอาต์สะพานไฟชั้น 1 ลงเรียบร้อยแล้วค่ะ บ้านตรงข้ามยังมีไฟกะพริบอยู่ ระวังกันด้วยนะคะ')" class="text-[9px] text-slate-500 hover:text-red-400 focus:outline-none flex items-center gap-0.5 select-none">
+                <i class="fa-solid fa-thumbtack text-[8px]"></i> ปักหมุด
+              </button>
+            </div>
+            <p class="mt-1 text-slate-200">สับคัตเอาต์สะพานไฟชั้น 1 ลงเรียบร้อยแล้วค่ะ บ้านตรงข้ามยังมีไฟกะพริบอยู่ ระวังกันด้วยนะคะ</p>
+            <span class="text-[8px] text-slate-500 font-mono block text-right mt-0.5">12 นาทีที่แล้ว</span>
+          </div>
+          <div class="p-2.5 rounded-xl bg-neutral-900 border border-slate-850 leading-relaxed text-slate-300">
+            <div class="flex items-center justify-between">
+              <span class="text-blue-400 font-bold"><i class="fa-solid fa-truck-medical text-[9px]"></i> ศูนย์กู้ภัยเขตบางพลัด - 350ม.</span>
+              <button onclick="pinMeshMessage('ศูนย์กู้ภัยเขตบางพลัด: กำลังจัดเตรียมเรือไฟเบอร์ขนอาหารแห้งไปแถวซอย 75 พิกัดไหนต้องการด่วนแจ้งทิ้งไว้ได้เลย')" class="text-[9px] text-slate-500 hover:text-red-400 focus:outline-none flex items-center gap-0.5 select-none">
+                <i class="fa-solid fa-thumbtack text-[8px]"></i> ปักหมุด
+              </button>
+            </div>
+            <p class="mt-1 text-slate-200">กำลังจัดเตรียมเรือไฟเบอร์ขนอาหารแห้งไปแถวซอย 75 พิกัดไหนต้องการด่วนแจ้งทิ้งไว้ได้เลย</p>
+            <span class="text-[8px] text-slate-500 font-mono block text-right mt-0.5">15 นาทีที่แล้ว</span>
+          </div>
+        </div>
+
+        <!-- Chat Input Form -->
+        <div class="flex gap-2">
+          <input type="text" id="meshChatInput" placeholder="พิมพ์ข้อความคุยกับคนรอบข้าง..." class="flex-1 bg-neutral-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white placeholder-slate-650 focus:outline-none focus:border-emerald-500 font-bold">
+          <button id="sendMeshBtn" class="px-4 bg-emerald-600 text-slate-950 font-black rounded-xl hover:bg-emerald-500 transition-colors text-xs flex items-center justify-center gap-1 btn-focus">
+            <i class="fa-solid fa-paper-plane"></i>
+            <span>ส่ง</span>
+          </button>
+        </div>
+        <div id="meshStatusAlert" class="hidden text-[9px] text-emerald-400 font-black tracking-wider text-center animate-pulse">
+          📶 ส่งวิทยุเพื่อนบ้านแล้วในรัศมี 350 เมตร (Hop Count: 1)
+        </div>
+      </div>
+
+      <!-- Tab Content C: UNIFIED OFFLINE COMMAND CHAT (Only visible when offline) -->
+      <div id="chat-offline-unified-container" class="hidden space-y-4">
+        <!-- Pinned Alert Board -->
+        <div id="unifiedPinnedAlert" class="p-2.5 rounded-xl bg-red-950/20 border border-red-500/30 flex items-center gap-2 select-none">
+          <span class="text-xs">📌</span>
+          <p id="unifiedPinnedAlertText" class="text-[10px] text-slate-200 font-medium truncate flex-1">ประกาศ: แจ้งพบพิกัดไฟฟ้ารั่วปากซอยจรัญฯ 75 โปรดเลี่ยงเดินลุยน้ำบริเวณแยกหลัก!</p>
+        </div>
+
+        <!-- Unified Chat Feed -->
+        <div id="unifiedChatFeed" class="h-[48vh] rounded-2xl bg-neutral-950 border border-neutral-900 p-4 overflow-y-auto space-y-3 text-[11px]">
+          <!-- System Welcome Message -->
+          <div class="flex items-start gap-2">
+            <div class="w-6 h-6 rounded-md bg-yellow-400/10 border border-yellow-400/20 flex items-center justify-center text-yellow-400 text-[10px] shrink-0 mt-0.5">📟</div>
+            <div class="p-2.5 rounded-xl bg-neutral-900 border border-slate-850 leading-relaxed text-slate-350 space-y-1.5">
+              <p class="font-bold text-white text-xs">📟 ศูนย์ควบคุมแชทกู้ภัยและคู่มือออฟไลน์รวมศูนย์</p>
+              <p class="text-[11px] text-slate-200">คุณสามารถเลือกแตะหมวดหมู่คู่มือด้านล่าง หรือสับช่องวิทยุเพื่อรับฟัง/ส่งข่าวสารกับคนในชุมชนได้ทันที</p>
+              <div class="text-[10px] text-emerald-400 border-t border-slate-800/80 pt-1.5 mt-1 leading-normal font-sans">
+                ℹ️ <strong>วิทยุเพื่อนบ้าน (Mesh Chat) ทำงานอย่างไร?</strong><br>
+                ระบบจำลองเครือข่ายวิทยุไร้สายแบบจุดต่อจุด (Peer-to-Peer Mesh) โดยใช้คลื่นสัญญาณสั้น (Wi-Fi Direct / Bluetooth) บนเครื่องโทรศัพท์ของทุกคนทำหน้าที่เป็นโหนด (Node) ส่งสัญญาณสะท้อนต่อกันเป็นทอดๆ (Multi-hop Routing) ในรัศมี 350 เมตรไปเรื่อยๆ ชุมชนจึงยังสามารถส่งข้อความช่วยเหลือ ปักหมุดพิกัดไฟรั่ว หรือรายงานสถานการณ์น้ำได้ตลอดเวลา แม้ระบบอินเทอร์เน็ต ไฟฟ้าหลัก หรือเสาสัญญาณค่ายมือถือรอบตัวจะล่มทั้งหมดก็ตาม
+                <br>
+                <span class="text-red-400 font-extrabold">⚠️ หมายเหตุสำคัญ: ฟีเจอร์วิทยุเพื่อนบ้านบนเว็บเพจนี้เป็นเพียง "ระบบจำลองสถานการณ์เพื่อสาธิต (Simulation Mockup)" เท่านั้น ไม่สามารถใช้รับส่งคลื่นสัญญาณวิทยุหรือสื่อสารหาผู้อื่นได้จริงผ่านหน้าเว็บเบราว์เซอร์นี้ หากอยู่ในสถานการณ์ภัยพิบัติจริง โปรดดาวน์โหลดแอปพลิเคชันออฟไลน์ที่รองรับเครือข่าย Mesh Network โดยตรง (เช่น Briar, Bridgefy) หรือใช้วิทยุสื่อสารคลื่นสั้น</span>
+              </div>
+            </div>
+          </div>
+          <div class="p-2.5 rounded-xl bg-neutral-900 border border-slate-850 leading-relaxed text-slate-350">
+            <div class="flex items-center justify-between">
+              <span class="text-yellow-400 font-bold"><i class="fa-solid fa-house-user text-[9px]"></i> บ้านลุงพล (จรัญฯ 73) - 100ม.</span>
+              <button onclick="pinMeshMessage('บ้านลุงพล (จรัญฯ 73): ระดับน้ำหน้าบ้านล้นตลิ่งเกือบ 1 เมตรแล้วครับ มีใครต้องการความช่วยเหลือเรื่องอาหารแห้งไหม?')" class="text-[9px] text-slate-500 hover:text-red-400 focus:outline-none flex items-center gap-0.5 select-none">
+                <i class="fa-solid fa-thumbtack text-[8px]"></i> ปักหมุด
+              </button>
+            </div>
+            <p class="mt-1 text-slate-100">ระดับน้ำหน้าบ้านล้นตลิ่งเกือบ 1 เมตรแล้วครับ มีใครต้องการความช่วยเหลือเรื่องอาหารแห้งไหม?</p>
+            <span class="text-[8px] text-slate-500 font-mono block text-right mt-0.5">5 นาทีที่แล้ว</span>
+          </div>
+        </div>
+
+        <!-- Quick Action Trigger Chips (Moved to Bottom) -->
+        <div class="grid grid-cols-5 gap-1.5 select-none">
+          <button onclick="handleCategoryQuery('medical')" class="py-2.5 rounded-lg bg-slate-900 border border-slate-800 hover:border-yellow-450 text-slate-200 text-[10px] font-semibold transition-all flex flex-col items-center justify-center gap-1 btn-focus">
+            <i class="fa-solid fa-kit-medical text-red-500"></i>
+            <span>ปฐมพยาบาล</span>
+          </button>
+          <button onclick="handleCategoryQuery('evacuation')" class="py-2.5 rounded-lg bg-slate-900 border border-slate-800 hover:border-yellow-450 text-slate-200 text-[10px] font-semibold transition-all flex flex-col items-center justify-center gap-1 btn-focus">
+            <i class="fa-solid fa-person-running text-orange-400"></i>
+            <span>อพยพ</span>
+          </button>
+          <button onclick="handleCategoryQuery('safety')" class="py-2.5 rounded-lg bg-slate-900 border border-slate-800 hover:border-yellow-450 text-slate-200 text-[10px] font-semibold transition-all flex flex-col items-center justify-center gap-1 btn-focus">
+            <i class="fa-solid fa-plug-circle-exclamation text-yellow-400"></i>
+            <span>ไฟฟ้า/แก๊ส</span>
+          </button>
+          <button onclick="handleCategoryQuery('living')" class="py-2.5 rounded-lg bg-slate-900 border border-slate-800 hover:border-yellow-450 text-slate-200 text-[10px] font-semibold transition-all flex flex-col items-center justify-center gap-1 btn-focus">
+            <i class="fa-solid fa-droplet text-blue-400"></i>
+            <span>น้ำ/สุขา</span>
+          </button>
+          <button onclick="handleCategoryQuery('contacts')" class="py-2.5 rounded-lg bg-slate-900 border border-slate-800 hover:border-yellow-450 text-slate-200 text-[10px] font-semibold transition-all flex flex-col items-center justify-center gap-1 btn-focus">
+            <i class="fa-solid fa-phone-flip text-emerald-400"></i>
+            <span>เบอร์ฉุกเฉิน</span>
+          </button>
+        </div>
+
+        <!-- Radio Controller Input Bar -->
+        <div class="flex gap-2 p-1.5 bg-neutral-950 border border-slate-900 rounded-xl items-center">
+          <!-- Channel Mode Switcher Badge -->
+          <button id="channelModeBtn" onclick="toggleUnifiedChannel()" class="px-2.5 py-1.5 rounded-lg bg-yellow-400 text-black font-extrabold text-[10px] tracking-wider uppercase transition-colors shrink-0 flex items-center gap-1 select-none">
+            <i class="fa-solid fa-book-bookmark"></i>
+            <span id="channelModeText">คู่มือออฟไลน์</span>
+          </button>
+          
+          <input type="text" id="unifiedChatInput" placeholder="พิมพ์ข้อความค้นหาคู่มือ..." class="flex-1 bg-transparent px-2 text-xs text-white placeholder-slate-650 focus:outline-none font-bold">
+          
+          <button id="sendUnifiedBtn" class="p-2.5 bg-yellow-400 text-black font-black rounded-lg hover:bg-yellow-300 transition-colors text-xs flex items-center justify-center gap-1 btn-focus shrink-0">
+            <i class="fa-solid fa-paper-plane"></i>
+          </button>
+        </div>
+        <div id="unifiedStatusAlert" class="hidden text-[9px] text-emerald-400 font-black tracking-wider text-center animate-pulse">
+          📶 ส่งวิทยุเพื่อนบ้านแล้วในรัศมี 350 เมตร (Hop Count: 1)
+        </div>
+      </div>
+    </div>
+    
+</main>
+
+    <!-- ================= PREMIUM BOTTOM NAVIGATION BAR (Mobile-First) ================= -->
+  <nav id="bottomNav" class="hidden fixed bottom-0 left-0 right-0 max-w-md mx-auto z-40 bg-slate-950/95 border-t border-slate-900 backdrop-blur-lg px-6 py-3 flex items-center justify-around shadow-[0_-5px_20px_rgba(0,0,0,0.6)]">
+    <!-- Tab 1: Dashboard -->
+    <button onclick="switchView('dashboard')" id="nav-dashboard" class="flex flex-col items-center gap-1 text-orange-500 font-extrabold transition-all duration-300 focus:outline-none">
+      <i class="fa-solid fa-house-flood-water text-lg"></i>
+      <span id="navDashboardText" class="text-[9px] uppercase tracking-wider">หน้าหลัก</span>
+    </button>
+    
+    <!-- Tab 2: Emergency Chat -->
+    <button onclick="switchView('chat')" id="nav-chat" class="flex flex-col items-center gap-1 text-slate-500 hover:text-slate-300 font-semibold transition-all duration-300 focus:outline-none relative">
+      <i class="fa-solid fa-comments text-lg"></i>
+      <span id="navChatText" class="text-[9px] uppercase tracking-wider">แชทช่วยเหลือ</span>
+      <!-- Small notification heartbeat indicator (for simulation realism) -->
+      <span id="chatBadge" class="absolute top-0 right-3 w-2.5 h-2.5 rounded-full bg-yellow-400 border border-black animate-ping hidden"></span>
+    </button>
+    
+  </nav>
+
+  <!-- ================= SOS MORSE CODE FLASHER OVERLAY ================= -->
+  <div id="sosOverlay" class="hidden fixed inset-0 bg-black flex flex-col items-center justify-center p-6 select-none cursor-pointer">
+    <div class="text-center space-y-6">
+      <div id="sosOverlayText" class="text-4xl font-black tracking-widest text-red-600 transition-colors duration-200">
+        TRANSMITTING SOS SIGNAL
+      </div>
+      <div class="inline-flex items-center gap-2 bg-red-950/70 border border-red-800 text-red-400 px-4 py-2 rounded-full font-bold text-xs uppercase animate-pulse">
+        <i class="fa-solid fa-circle-exclamation"></i>
+        <span>Morse Pattern: · · · - - - · · ·</span>
+      </div>
+      <p class="text-slate-400 text-sm max-w-xs mx-auto">
+        ระบบกะพริบรหัสมอร์สตามไฟบีคอนนำทางความถี่สูงเพื่อขอความช่วยเหลือเร่งด่วนทางอากาศและเรือกู้ชีพ
+      </p>
+      <button onclick="stopSOSBeacon()" class="px-8 py-4 bg-yellow-400 text-black font-extrabold text-base rounded-full shadow-lg hover:bg-yellow-300 transition-colors tracking-widest uppercase">
+        ยกเลิกสัญญาณ (TAP TO ABORT)
+      </button>
+    </div>
+  </div>
+
+  <!-- ================= TELEMETRY LOADING OVERLAY ================= -->
+  <div id="telemetryOverlay" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex flex-col items-center justify-center space-y-4 select-none">
+    <div class="w-12 h-12 rounded-full border-4 border-slate-900 border-t-orange-500 animate-spin"></div>
+    <div class="text-center space-y-1">
+      <div id="telemetryOverlayTitle" class="text-sm font-extrabold text-white tracking-widest uppercase">🛰️ CONNECTING TELEMETRY...</div>
+      <p class="text-[9px] text-slate-500 tracking-wide font-medium">กำลังเจรจาสัญญาณเชื่อมต่อระบบดาวเทียมสำรองภายนอก</p>
+    </div>
+  </div>
+
+  <!-- ================= FOOTER ================= -->
+  <footer class="max-w-md mx-auto px-4 mt-8 mb-4 text-center text-[10px] text-slate-600 font-semibold tracking-wider uppercase border-t border-slate-900 pt-6">
+    <p>SAFE-FLOOD Mobile Decision Assistant</p>
+    <p class="text-[9px] mt-1 text-slate-700">Protected by Local Redundancy Systems   Ver 1.5.0</p>
+  </footer>
+
+  <!-- Link External JavaScript Logic -->
+  <script src="app.js" defer></script>
+</body>
+</html>
